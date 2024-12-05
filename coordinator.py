@@ -6,6 +6,7 @@ import os
 import logging
 import json
 from typing import Dict, List, Any
+from analyzer import analyzer
 
 class Coordinator:
     """Manages workers and aggregates results"""
@@ -17,6 +18,7 @@ class Coordinator:
         self.port = port
         self.file_chunks = {}  # Tracking chunk processing status
         self.results = {}  # Aggregated results
+        self.global_analyzer = analyzer()
         #self.logger = logging.getLogger('Coordinator')
         #self.logger.setLevel(logging.INFO)
         
@@ -61,11 +63,13 @@ class Coordinator:
         except asyncio.CancelledError:
             await runner.cleanup()
             
+            
     async def process_test_logs(self):
         """Process test logs from test_vectors/logs directory"""
         print(f"Waiting for workers to register")
         await asyncio.sleep(40)  # Wait for workers to register
         print(f"Waiting for workers to register over")
+        
         # Path to test logs
         log_dir = 'test_vectors/logs'
         
@@ -76,10 +80,15 @@ class Coordinator:
             if f.endswith('.log')
         ]
         print(f"logfiles {log_files}")
+        
         # Distribute work for each log file
         for filepath in log_files:
             print(f"distribute work started")
             await self.distribute_work(filepath)
+        
+        # After all logs are processed, write metrics
+        await asyncio.sleep(20)  # Give some time for final processing
+        self.global_analyzer.write_metrics_to_file(log_dir, 'metrics_output.json')
     
     async def register_worker(self, request):
         """Handle worker registration"""
@@ -158,7 +167,7 @@ class Coordinator:
                     print(f"Failed to send chunk to worker {worker_id}")
         except Exception as e:
             print(f"Error sending chunk to worker {worker_id}: {e}")
-
+    
     async def receive_results(self, request):
         """Handle results from workers"""
         data = await request.json()
@@ -174,6 +183,9 @@ class Coordinator:
             self.results[filepath] = []
         
         self.results[filepath].extend(chunk_results)
+        
+        # Update global analyzer with the chunk results
+        self.global_analyzer.update_metrics(chunk_results)
         
         # Update chunk processing status
         for chunk in self.file_chunks.get(filepath, []):

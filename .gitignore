@@ -5,3 +5,5 @@
 .env.production.local
 *.env
 .venv
+__pycache__
+env
