@@ -1,0 +1,30 @@
+{
+    "malformed.log": {
+        "avg_response_time": 94.8,
+        "error_rate": 0.8,
+        "requests_per_second": 65.16,
+        "total_requests": 6516,
+        "malformed_lines": 0
+    },
+    "normal.log": {
+        "avg_response_time": 94.8,
+        "error_rate": 0.8,
+        "requests_per_second": 65.16,
+        "total_requests": 6516,
+        "malformed_lines": 0
+    },
+    "error_spike.log": {
+        "avg_response_time": 94.8,
+        "error_rate": 0.8,
+        "requests_per_second": 65.16,
+        "total_requests": 6516,
+        "malformed_lines": 0
+    },
+    "mixed_format.log": {
+        "avg_response_time": 94.8,
+        "error_rate": 0.8,
+        "requests_per_second": 65.16,
+        "total_requests": 6516,
+        "malformed_lines": 0
+    }
+}
