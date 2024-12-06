@@ -19,6 +19,8 @@ This document breaks down the components, interactions, and workflow of a distri
 
 ## 2. Component Interactions
 
+![oie_guHh1SmDgP6j](https://github.com/user-attachments/assets/134b7620-67bf-4a4e-a9ac-57ca323163e9)
+
 ### Coordinator Responsibilities
 
 #### 1. Worker Management
