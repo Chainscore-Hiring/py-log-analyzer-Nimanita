@@ -1,160 +1,150 @@
-# Distributed Log Analyzer - Technical Assessment
-**Time: 6-8 hours | Python 3.9+ | Focus: Systems Programming**
+# Distributed Log Analyzer Workflow
 
-## Your Task
-Build a distributed log processing system with one coordinator and multiple workers that can:
-1. Process large log files efficiently
-2. Calculate real-time metrics
-3. Handle worker failures gracefully
+## Overview
+This document breaks down the components, interactions, and workflow of a distributed log processing system.
 
-## Core Requirements
+## 1. Asynchronous HTTP Communication (aiohttp)
 
-### 1. Basic Processing
-Build a worker node that can:
-- Read and parse log files efficiently
-- Extract timestamp, level, message, and metrics
-- Process logs in chunks to manage memory
-- Send results to coordinator
+### What is aiohttp?
+- **Asynchronous HTTP client/server library for Python**
+- Allows non-blocking network operations
+- Enables concurrent processing of multiple requests
+- Uses Python's `asyncio` for efficient I/O operations
 
-### 2. Distribution
-Build a coordinator that can:
-- Split work among multiple workers
-- Track processing progress
-- Handle worker failures
-- Aggregate results
+### Key Features in Our Implementation
+- Workers register with Coordinator
+- Coordinator distributes work chunks
+- Workers send processing results back
+- Supports concurrent network interactions
 
-### 3. Real-time Analysis
-Calculate these metrics in real-time:
-- Error rate per minute
-- Average response time
-- Request count per second
-- Resource usage patterns
+## 2. Component Interactions
 
-## What We Provide
+### Coordinator Responsibilities
+
+#### 1. Worker Management
+- Accept worker registrations
+- Track active workers
+- Monitor worker health via heartbeats
+- Redistribute work if a worker fails
+
+#### 2. Log Processing Distribution
+- Split large log files into chunks
+- Assign chunks to available workers
+- Collect and aggregate results
+
+### Worker Responsibilities
+
+#### 1. Process Log Chunks
+- Read assigned file segments
+- Parse log entries
+- Extract metrics
+- Send results back to coordinator
+
+## 3. Real-Time Metrics Analysis
+
+### Analyzer Engine Functionality
+
+The `Analyzer` class calculates real-time metrics through several key methods:
+
+#### Tracking Metrics in Time Windows
 ```python
-# starter/log_entry.py
-from datetime import datetime
-from typing import Dict, Optional
-
-class LogEntry:
-    def __init__(
-        self,
-        timestamp: datetime,
-        level: str,
-        message: str,
-        metrics: Optional[Dict[str, float]] = None
-    ):
-        self.timestamp = timestamp
-        self.level = level
-        self.message = message
-        self.metrics = metrics or {}
-
-# starter/sample_logs.py
-SAMPLE_LOGS = """
-2024-01-24 10:15:32.123 INFO Request processed in 127ms
-2024-01-24 10:15:33.001 ERROR Database connection failed
-2024-01-24 10:15:34.042 INFO Request processed in 95ms
-"""
-
-# starter/test_data.py
-def generate_test_logs(size_mb: int, path: str):
-    """Generates sample log files for testing"""
-    pass
+self.metrics = { 
+    'error_rate': defaultdict(int), 
+    'response_times': defaultdict(list), 
+    'request_count': defaultdict(int), 
+    'error_count': defaultdict(int) 
+}
 ```
 
-## What You Need to Build
-
-1. Worker Node
+#### Calculating Metrics Dynamically
 ```python
-class Worker:
-    """Processes log chunks and reports results"""
-    
-    def __init__(self, worker_id: str, coordinator_url: str):
-        self.worker_id = worker_id
-        self.coordinator_url = coordinator_url
-
-    async def process_chunk(self, filepath: str, start: int, size: int) -> Dict:
-        """Process a chunk of log file and return metrics"""
-        pass
-
-    async def report_health(self) -> None:
-        """Send heartbeat to coordinator"""
-        pass
+def update_metrics(self, log_entries):
+    for entry in log_entries:
+        # Track request count
+        self.metrics['request_count'][minute_key] += 1
+        
+        # Track error rate
+        if entry.level == 'ERROR':
+            self.metrics['error_count'][minute_key] += 1
+        
+        # Track response times
+        if 'response_time' in entry.metrics:
+            self.metrics['response_times'][minute_key].append(
+                entry.metrics['response_time']
+            )
 ```
 
-2. Coordinator
+#### Generating Aggregated Metrics
 ```python
-class Coordinator:
-    """Manages workers and aggregates results"""
-    
-    def __init__(self, port: int):
-        self.workers = {}
-        self.results = {}
-
-    async def distribute_work(self, filepath: str) -> None:
-        """Split file and assign chunks to workers"""
-        pass
-
-    async def handle_worker_failure(self, worker_id: str) -> None:
-        """Reassign work from failed worker"""
-        pass
+def get_current_metrics(self):
+    metrics_summary = {
+        'error_rate': {},      # Errors per total requests
+        'avg_response_time': {},  # Average response time
+        'request_count': {}    # Requests per time window
+    }
+    # Calculation logic...
+    return metrics_summary
 ```
 
-3. Analysis Engine
-```python
-class Analyzer:
-    """Calculates real-time metrics from results"""
-    
-    def __init__(self):
-        self.metrics = {}
+## Workflow Diagram Explanation
 
-    def update_metrics(self, new_data: Dict) -> None:
-        """Update metrics with new data from workers"""
-        pass
+1. **Worker Registration**
+   - Workers send registration requests to Coordinator
+   - Coordinator tracks available workers
 
-    def get_current_metrics(self) -> Dict:
-        """Return current calculated metrics"""
-        pass
+2. **Work Distribution**
+   - Coordinator reads log file
+   - Splits file into chunks
+   - Assigns chunks to registered workers
+
+3. **Chunk Processing**
+   - Workers read their assigned log file chunks
+   - Parse log entries
+   - Extract metrics using Analyzer
+   - Calculate real-time metrics
+
+4. **Result Reporting**
+   - Workers send processed results back to Coordinator
+   - Coordinator aggregates results from all workers
+
+5. **Metrics Generation**
+   - Analyzer continuously updates metrics
+   - Provides real-time insights into log data
+
+## Key Metrics Tracked
+
+1. **Error Rate**
+   - Percentage of error logs per time window
+   - Shows system reliability
+
+2. **Response Times**
+   - Average time to process requests
+   - Indicates system performance
+
+3. **Request Count**
+   - Number of requests per time window
+   - Helps understand system load
+
+## Communication Flow
+```
+Worker Registration: Worker → HTTP POST → Coordinator (/register)
+Chunk Distribution: Coordinator → HTTP POST → Worker (/process)
+Results Submission: Worker → HTTP POST → Coordinator (/results)
 ```
 
-## Testing Requirements
-1. Test with provided sample log files in `test_vectors/logs/`
-2. Run with 3 worker nodes
-3. Simulate worker failure
-4. Measure processing speed
-5. Monitor memory usage
+## Advantages of This Architecture
 
-## Evaluation Criteria
+1. **Scalability**
+   - Can add more workers dynamically
+   - Distributes processing load
 
-1. Code Quality (40%)
-- Clean, well-structured code
-- Error handling
-- Documentation
-- Testing
+2. **Fault Tolerance**
+   - Workers can fail and be replaced
+   - Coordinator manages work redistribution
 
-2. System Design (30%)
-- Worker management
-- Failure handling
-- Resource efficiency
-- Communication protocol
-
-3. Performance (30%)
-- Processing speed
-- Memory usage
-- Failure recovery time
-- Result accuracy
-
-## Deliverables
-1. Source code with:
-   - Worker implementation
-   - Coordinator implementation
-   - Analysis engine
-   - Tests
-
-2. Brief documentation:
-   - Setup instructions
-   - Design decisions
-   - Performance results
+3. **Real-Time Processing**
+   - Metrics calculated during log processing
+   - Provides immediate insights
 
 ## Getting Started
 ```bash
