@@ -131,7 +131,7 @@ class Coordinator:
             print(f"{worker_id}")
             start = i * chunk_size
             size = chunk_size if i < num_workers - 1 else file_size - start
-            
+            print(f"i {i} {num_workers} {start} {size}")
             chunk = {
                 'worker_id': worker_id,
                 'port' : self.workers[worker_id]['port'],
@@ -141,7 +141,6 @@ class Coordinator:
                 'status': 'pending'
             }
             chunks.append(chunk)
-            
         self.file_chunks[filepath] = chunks
         
         # Distribute chunks to workers
@@ -209,7 +208,7 @@ class Coordinator:
                 if chunk['worker_id'] == worker_id and chunk['status'] != 'completed':
                     # Find a new active worker
                     new_worker = next((w for w in self.workers if self.workers[w]['status'] == 'active'), None)
-                    
+                    print(f"new worker assigned {new_worker} {chunk}")
                     if new_worker:
                         chunk['worker_id'] = new_worker
                         chunk['status'] = 'pending'
@@ -226,7 +225,7 @@ class Coordinator:
 
             for worker_id, worker_info in list(self.workers.items()):
                 print(f"Heartbeat received {worker_id} {worker_info}")
-                if current_time - worker_info['last_heartbeat'] > 30:  # 30 seconds timeout
+                if current_time - worker_info['last_heartbeat'] > 300:  # 30 seconds timeout
                     await self.handle_worker_failure(worker_id)
             
             await asyncio.sleep(10)  # Check every 10 seconds

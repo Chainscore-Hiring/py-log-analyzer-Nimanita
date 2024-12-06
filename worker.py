@@ -91,33 +91,34 @@ class Worker:
                 # Read chunk
                 chunk_data = file.read(size)
                 log_lines = chunk_data.split('\n')
-                print(chunk_data)
-                print(log_lines)
+                #print(chunk_data)
+                #print(log_lines)
                 for line in log_lines:
-                    print(line , "line before parsing")
+                    #print(line , "line before parsing")
                     if line.strip():
                         try:
                             log_entry = LogEntry.parse(line)
-                            print(f"logentry parsed successfully {log_entry}")
+                            #print(f"logentry parsed successfully {log_entry}")
                             processed_logs.append({
                                 'timestamp': log_entry["timestamp"],
                                 'level': log_entry["level"],
                                 'message': log_entry["message"],
-                                'metrics': log_entry["metrics"]
+                                'metrics': log_entry["metrics"],
+                                'filepath': filepath
                             })
                         except ValueError as e:
                             pass
                 
                 # Update analyzer with processed logs
-                print("processed logs" , processed_logs)
+                #print("processed logs" , processed_logs)
                 self.analyzer.update_metrics(processed_logs)
-                print("update metrics successult" , processed_logs)
+                #print("update metrics successult" , processed_logs)
               
                 
         except Exception as e:
             print(f"Chunk processing error: {e}")
         
-        self.print_metrics()
+        #self.print_metrics()
         return processed_logs
 
 
@@ -147,7 +148,7 @@ class Worker:
     async def process_chunk_request(self, request):
         """HTTP endpoint to receive chunk processing request"""
         try:
-            print(f"Chunck received {request.json()}")
+            #print(f"Chunck received {request.json()}")
             data = await request.json()
             filepath = data['filepath']
             start = data['start']
@@ -157,7 +158,7 @@ class Worker:
             results = await self.process_chunk(filepath, start, size)
             
             # Send results back
-            print(results , "results")
+            #print(results , "results")
             await self.send_results(filepath, results)
             
             return web.json_response({'status': 'success'})
@@ -187,8 +188,8 @@ class Worker:
     def print_metrics(self):
         """Print out current metrics after processing"""
         metrics = self.analyzer.get_current_metrics()
-        print(f"\nMetrics for Worker {self.worker_id}:")
-        print(metrics)
+        #print(f"\nMetrics for Worker {self.worker_id}:")
+        #print(metrics)
         #print(json.dumps(metrics, indent=2))
    
 

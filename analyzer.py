@@ -13,38 +13,53 @@ class analyzer:
         
         # Metrics tracking
         self.metrics = {
-            'error_rate': defaultdict(int),
-            'response_times': defaultdict(list),
-            'request_count': defaultdict(int),
-            'error_count': defaultdict(int),
-            'malformed_lines': defaultdict(int)
+            'error_rate': defaultdict(lambda: defaultdict(int)),
+            'response_times': defaultdict(lambda: defaultdict(list)),
+            'request_count': defaultdict(lambda: defaultdict(int)),
+            'error_count': defaultdict(lambda: defaultdict(int)),
+            'malformed_lines': defaultdict(int),
+            #'total_count2' : defaultdict(int)
         }
+    
     
     def update_metrics(self, log_entries):
         """Update metrics with new log entries"""
-        print("inside update metrics")
         with self.lock:
+            print(f"logentries {log_entries}")
+
             for entry in log_entries:
                 if isinstance(entry, dict):
+                    # Ensure we have a filepath or use a default
+                    filepath = entry.get('filepath', 'unknown')
+                    filename = os.path.basename(filepath)
+                    
                     # Truncate timestamp to minute resolution
                     if isinstance(entry['timestamp'], str):
                         minute_key = datetime.fromisoformat(entry['timestamp']).replace(second=0, microsecond=0)
                     else:
                         minute_key = entry['timestamp'].replace(second=0, microsecond=0)
                     
-                    # Count requests
-                    self.metrics['request_count'][minute_key] += 1
-                    
-                    # Track error rate
+                    # Count requests per file
+                    self.metrics['request_count'][filename][minute_key] += 1
+                    #self.metrics['total_count2'][filename] +=1
+                    # Track error rate per file
                     if entry["level"] == 'ERROR':
-                        self.metrics['error_count'][minute_key] += 1
+                        self.metrics['error_count'][filename][minute_key] += 1
                     
-                    # Track response times
+                    # Track response times per file
                     if 'response_time' in entry["metrics"]:
-                        self.metrics['response_times'][minute_key].append(
+                        self.metrics['response_times'][filename][minute_key].append(
                             entry['metrics']['response_time']
-                        )
-    
+                        )    
+                
+            print("Current Metrics State:")
+            for metric_name, metric_data in self.metrics.items():
+                print(f"\n{metric_name}:")
+                for filename, file_data in metric_data.items():
+                    print(f"  {filename}:")
+                    print(f"    {file_data}")
+                    
+                    
     def get_current_metrics(self):
         """Return current calculated metrics"""
         with self.lock:
@@ -54,66 +69,78 @@ class analyzer:
             metrics_summary = {
                 'error_rate': {},
                 'avg_response_time': {},
-                'request_count': {}
+                'request_count': {},
+                'requests_per_second': {}
             }
             
-            for minute, count in self.metrics['request_count'].items():
-                if minute < window_start:
-                    continue
+            # Calculate metrics for each file
+            for filename in set(self.metrics['request_count'].keys()):
+                metrics_summary['error_rate'][filename] = {}
+                metrics_summary['avg_response_time'][filename] = {}
+                metrics_summary['request_count'][filename] = {}
+                metrics_summary['requests_per_second'][filename] = {}
                 
-                # Calculate error rate
-                total_requests = count
-                error_count = self.metrics['error_count'].get(minute, 0)
-                metrics_summary['error_rate'][minute] = (error_count / total_requests) if total_requests else 0
-                
-                # Calculate average response time
-                response_times = self.metrics['response_times'].get(minute, [])
-                metrics_summary['avg_response_time'][minute] = (
-                    sum(response_times) / len(response_times) if response_times else 0
-                )
-                
-                metrics_summary['request_count'][minute] = total_requests
+                for minute, count in self.metrics['request_count'][filename].items():
+                    if minute < window_start:
+                        continue
+                    
+                    # Calculate error rate
+                    total_requests = count
+                    error_count = self.metrics['error_count'][filename].get(minute, 0)
+                    error_rate = (error_count / total_requests) * 100 if total_requests else 0
+                    metrics_summary['error_rate'][filename][minute] = round(error_rate, 2)
+                    
+                    # Calculate average response time
+                    response_times = self.metrics['response_times'][filename].get(minute, [])
+                    avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+                    metrics_summary['avg_response_time'][filename][minute] = round(avg_response_time, 2)
+                    
+                    # Request count and requests per second
+                    metrics_summary['request_count'][filename][minute] = total_requests
+                    metrics_summary['requests_per_second'][filename][minute] = round(total_requests / 60, 2)
             
             return metrics_summary
         
     def generate_comprehensive_metrics(self, filepath: str) -> dict:
-        """Generate comprehensive metrics for a log file"""
+        """Generate comprehensive metrics for a specific log file"""
         with self.lock:
+            filename = os.path.basename(filepath)
+            
             # Prepare the metrics dictionary
             metrics = {
                 'avg_response_time': 0.0,
                 'error_rate': 0.0,
                 'requests_per_second': 0.0,
                 'total_requests': 0,
-                'malformed_lines': self.metrics.get('malformed_lines', {}).get(os.path.basename(filepath), 0)
+                'malformed_lines': self.metrics['malformed_lines'].get(filename, 0)
             }
             
-            # Aggregate metrics across all time
+            # Aggregate metrics for this specific file
             total_response_times = []
             total_requests = 0
             total_errors = 0
             
-            for minute, count in self.metrics['request_count'].items():
+            for minute, count in self.metrics['request_count'][filename].items():
                 total_requests += count
                 
                 # Collect response times
-                response_times = self.metrics['response_times'].get(minute, [])
+                response_times = self.metrics['response_times'][filename].get(minute, [])
                 total_response_times.extend(response_times)
                 
                 # Count errors
-                total_errors += self.metrics['error_count'].get(minute, 0)
+                total_errors += self.metrics['error_count'][filename].get(minute, 0)
             
             # Calculate average response time
             if total_response_times:
-                metrics['avg_response_time'] = round(sum(total_response_times) / len(total_response_times), 1)
+                metrics['avg_response_time'] = round(sum(total_response_times) / len(total_response_times), 2)
             
             # Calculate total requests and requests per second
             metrics['total_requests'] = total_requests
-            metrics['requests_per_second'] = round(total_requests / 100, 2)  # Assuming 100-second window
-            
-            # Calculate error rate (per 100 seconds)
+            metrics['requests_per_second'] = round(total_requests / self.window_seconds, 2)
+            #metrics['total_count2'] = self.metrics['total_count2'][filename]
+            # Calculate error rate 
             if total_requests > 0:
-                metrics['error_rate'] = round((total_errors / total_requests) * 100, 1)
+                metrics['error_rate'] = round((total_errors / total_requests) * 100, 2)
             
             return metrics
     
